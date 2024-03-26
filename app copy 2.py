@@ -10,18 +10,6 @@ from langchain.chains import ConversationalRetrievalChain
 from htmlTemplates import css, bot_template, user_template
 from langchain.llms import HuggingFaceHub
 
-#---- Imports for extract info of the websites -----------
-from langchain_core.messages import AIMessage, HumanMessage
-from langchain_community.document_loaders import WebBaseLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.vectorstores import Chroma
-from langchain_openai import OpenAIEmbeddings, ChatOpenAI
-
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain.chains import create_history_aware_retriever, create_retrieval_chain
-from langchain.chains.combine_documents import create_stuff_documents_chain
-
-
 def get_pdf_text(pdf_docs):
     text = ""
     for pdf in pdf_docs:
@@ -29,7 +17,6 @@ def get_pdf_text(pdf_docs):
         for page in pdf_reader.pages:
             text += page.extract_text()
     return text
-
 
 def get_text_chunks(text):
     text_splitter = CharacterTextSplitter(
@@ -41,18 +28,13 @@ def get_text_chunks(text):
     chunks = text_splitter.split_text(text)
     return chunks
 
-
 def get_vectorstore(text_chunks):
     embeddings = OpenAIEmbeddings()
-    # embeddings = HuggingFaceInstructEmbeddings(model_name="hkunlp/instructor-xl")
     vectorstore = FAISS.from_texts(texts=text_chunks, embedding=embeddings)
     return vectorstore
 
-
 def get_conversation_chain(vectorstore):
     llm = ChatOpenAI()
-    # llm = HuggingFaceHub(repo_id="google/flan-t5-xxl", model_kwargs={"temperature":0.5, "max_length":512})
-
     memory = ConversationBufferMemory(
         memory_key='chat_history', return_messages=True)
     conversation_chain = ConversationalRetrievalChain.from_llm(
@@ -61,7 +43,6 @@ def get_conversation_chain(vectorstore):
         memory=memory
     )
     return conversation_chain
-
 
 def handle_userinput(user_question):
     response = st.session_state.conversation({'question': user_question})
@@ -75,14 +56,9 @@ def handle_userinput(user_question):
             st.write(bot_template.replace(
                 "{{MSG}}", message.content), unsafe_allow_html=True)
 
-if 'num_inputs' not in st.session_state:
-    st.session_state['num_inputs'] = 1
-
-def add_input():
-    st.session_state['num_inputs'] += 1
-
 def main():
     load_dotenv()
+    st.write(css, unsafe_allow_html=True)
     st.write(
         """
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
@@ -96,44 +72,50 @@ def main():
         """,
         unsafe_allow_html=True
     )
-    st.write(css, unsafe_allow_html=True)
+
+    if 'num_inputs' not in st.session_state:
+        st.session_state['num_inputs'] = 1
+
+    def add_input():
+        all_filled = all(st.session_state.get(f"url_{i}", "") != "" for i in range(st.session_state['num_inputs']))
+        if not all_filled:
+            st.warning("Por favor, rellena todas las URLs existentes antes de agregar una nueva.")
+        else:
+            st.session_state['num_inputs'] += 1
+
+    if "processed" not in st.session_state:
+        st.session_state.processed = False
+
+    with st.sidebar:
+        st.subheader("Documentos")
+        pdf_docs = st.file_uploader("Cargue sus archivos PDF aquí", accept_multiple_files=True)
+        if pdf_docs and not st.session_state.processed:
+            if st.button("Procesar"):
+                with st.spinner("Procesando"):
+                    raw_text = get_pdf_text(pdf_docs)
+                    text_chunks = get_text_chunks(raw_text)
+                    vectorstore = get_vectorstore(text_chunks)
+                    st.session_state.conversation = get_conversation_chain(vectorstore)
+                    st.session_state.processed = True
+
+        st.subheader("Fuentes URL")
+
+        for i in range(st.session_state['num_inputs']):
+            st.text_input(f"URL {i+1}", key=f"url_{i}", placeholder="https://www.example.com/")
+        st.button("➕ Agregar otra URL", on_click=add_input)
+
 
     if "conversation" not in st.session_state:
         st.session_state.conversation = None
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = None
 
-    user_question = st.text_input("Pregúntame sobre tus documentos:")
-    if user_question:
-        handle_userinput(user_question)
-
-    with st.sidebar:
-        st.subheader("Documentos")
-        pdf_docs = st.file_uploader(
-            "Cargue sus archivos PDF aquí y haga clic en 'Procesar'", accept_multiple_files=True)
-        if st.button("Procesar"):
-            with st.spinner("Procesando"):
-                # get pdf text
-                raw_text = get_pdf_text(pdf_docs)
-
-                # get the text chunks
-                text_chunks = get_text_chunks(raw_text)
-
-                # create vector store
-                vectorstore = get_vectorstore(text_chunks)
-
-                # create conversation chain
-                st.session_state.conversation = get_conversation_chain(vectorstore)
-
-        st.text_input(label="URL", placeholder="https://www.example.com")
-        #if st.button("Procesar url"):
-            #with st.spinner("Procesando"):
-
-        #for i in range(st.session_state['num_inputs']):
-        #    st.text_input(f"URL {i+1}", key=f"url_{i}", placeholder="https://www.example.com")
-
-        #st.button("➕ Agregar otra URL", on_click=add_input)
-
+    if st.session_state.processed:
+        user_question = st.text_input("Pregúntame sobre tus documentos:")
+        if user_question:
+            handle_userinput(user_question)
+    else:
+        st.text_input("Pregúntame sobre tus documentos:", disabled=True)
 
 if __name__ == '__main__':
     main()

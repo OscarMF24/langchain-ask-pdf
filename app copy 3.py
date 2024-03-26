@@ -10,18 +10,6 @@ from langchain.chains import ConversationalRetrievalChain
 from htmlTemplates import css, bot_template, user_template
 from langchain.llms import HuggingFaceHub
 
-#---- Imports for extract info of the websites -----------
-from langchain_core.messages import AIMessage, HumanMessage
-from langchain_community.document_loaders import WebBaseLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.vectorstores import Chroma
-from langchain_openai import OpenAIEmbeddings, ChatOpenAI
-
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain.chains import create_history_aware_retriever, create_retrieval_chain
-from langchain.chains.combine_documents import create_stuff_documents_chain
-
-
 def get_pdf_text(pdf_docs):
     text = ""
     for pdf in pdf_docs:
@@ -125,14 +113,10 @@ def main():
                 # create conversation chain
                 st.session_state.conversation = get_conversation_chain(vectorstore)
 
-        st.text_input(label="URL", placeholder="https://www.example.com")
-        #if st.button("Procesar url"):
-            #with st.spinner("Procesando"):
+        for i in range(st.session_state['num_inputs']):
+            st.text_input(f"URL {i+1}", key=f"url_{i}", placeholder="https://www.example.com")
 
-        #for i in range(st.session_state['num_inputs']):
-        #    st.text_input(f"URL {i+1}", key=f"url_{i}", placeholder="https://www.example.com")
-
-        #st.button("➕ Agregar otra URL", on_click=add_input)
+        st.button("➕ Agregar otra URL", on_click=add_input)
 
 
 if __name__ == '__main__':
