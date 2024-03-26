@@ -8,19 +8,6 @@ from langchain.chat_models import ChatOpenAI
 from langchain.memory import ConversationBufferMemory
 from langchain.chains import ConversationalRetrievalChain
 from htmlTemplates import css, bot_template, user_template
-from langchain.llms import HuggingFaceHub
-
-#---- Imports for extract info of the websites -----------
-from langchain_core.messages import AIMessage, HumanMessage
-from langchain_community.document_loaders import WebBaseLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.vectorstores import Chroma
-from langchain_openai import OpenAIEmbeddings, ChatOpenAI
-
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain.chains import create_history_aware_retriever, create_retrieval_chain
-from langchain.chains.combine_documents import create_stuff_documents_chain
-
 
 def get_pdf_text(pdf_docs):
     text = ""
@@ -44,14 +31,13 @@ def get_text_chunks(text):
 
 def get_vectorstore(text_chunks):
     embeddings = OpenAIEmbeddings()
-    # embeddings = HuggingFaceInstructEmbeddings(model_name="hkunlp/instructor-xl")
+
     vectorstore = FAISS.from_texts(texts=text_chunks, embedding=embeddings)
     return vectorstore
 
 
 def get_conversation_chain(vectorstore):
     llm = ChatOpenAI()
-    # llm = HuggingFaceHub(repo_id="google/flan-t5-xxl", model_kwargs={"temperature":0.5, "max_length":512})
 
     memory = ConversationBufferMemory(
         memory_key='chat_history', return_messages=True)
@@ -74,12 +60,6 @@ def handle_userinput(user_question):
         else:
             st.write(bot_template.replace(
                 "{{MSG}}", message.content), unsafe_allow_html=True)
-
-if 'num_inputs' not in st.session_state:
-    st.session_state['num_inputs'] = 1
-
-def add_input():
-    st.session_state['num_inputs'] += 1
 
 def main():
     load_dotenv()
@@ -104,6 +84,7 @@ def main():
         st.session_state.chat_history = None
 
     user_question = st.text_input("Pregúntame sobre tus documentos:")
+
     if user_question:
         handle_userinput(user_question)
 
@@ -126,14 +107,6 @@ def main():
                 st.session_state.conversation = get_conversation_chain(vectorstore)
 
         st.text_input(label="URL", placeholder="https://www.example.com")
-        #if st.button("Procesar url"):
-            #with st.spinner("Procesando"):
-
-        #for i in range(st.session_state['num_inputs']):
-        #    st.text_input(f"URL {i+1}", key=f"url_{i}", placeholder="https://www.example.com")
-
-        #st.button("➕ Agregar otra URL", on_click=add_input)
-
 
 if __name__ == '__main__':
     main()
